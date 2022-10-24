@@ -6,44 +6,9 @@ sys.path.append('/media/dell/DATA/wy/RNAS')
 import torch
 from PIL import Image
 from model.seg_hrnet import get_seg_model
+from engine.baseEngine import BaseEngine
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '1'
-class BaseEngine(object):
-    def __init__(self, model, optimizer, loss_fn, device):
-        self.model = model
-        self.optimizer = optimizer
-        self.loss_fn = loss_fn
-        self.device = device
-        self.model.to(self.device)
-    def train(self, train_loader):
-        self.model.train()
-        for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.to(self.device), target.to(self.device)
-            self.optimizer.zero_grad()
-            output = self.model(data)
-            loss = self.loss_fn(output, target)
-            loss.backward()
-            self.optimizer.step()
-    def test(self, test_loader):
-        self.model.eval()
-        test_loss = 0
-        correct = 0
-        with torch.no_grad():
-            for data, target in test_loader:
-                data, target = data.to(self.device), target.to(self.device)
-                output = self.model(data)
-                test_loss += self.loss_fn(output, target, reduction='sum').item() # sum up batch loss
-                pred = output.argmax(dim=1, keepdim=True) # get the index of the max log-probability
-                correct += pred.eq(target.view_as(pred)).sum().item()
-        test_loss /= len(test_loader.dataset)
-        test_accuracy = 100. * correct / len(test_loader.dataset)
-        return test_loss, test_accuracy
-    def save(self, path):
-        torch.save(self.model.state_dict(), path)
-    def load(self, path):
-        data = torch.load(path)
-        self.model.to(self.device)
-        self.model.load_state_dict(data['state_dict'])
         
 if __name__ == '__main__':
     model = get_seg_model()

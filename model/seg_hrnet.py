@@ -262,11 +262,12 @@ blocks_dict = {
 
 class HighResolutionNet(nn.Module):
 
-    def __init__(self):
+    def __init__(self, stage=None):
 
         super(HighResolutionNet, self).__init__()
         ALIGN_CORNERS = True
-
+        
+        self.stage = stage
         # stem net
    
         self.conv1 = nn.Conv2d(4, 64, kernel_size=3, stride=2, padding=1,
@@ -306,7 +307,7 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition1 = self._make_transition_layer(
             [stage1_out_channel], num_channels)
-        self.stage2, pre_stage_channels = self._make_stage(
+        self.stage2, pre_stage_channels_2 = self._make_stage(
             self.stage2_cfg, num_channels)
 
         self.stage3_cfg = {
@@ -322,8 +323,8 @@ class HighResolutionNet(nn.Module):
         num_channels = [
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition2 = self._make_transition_layer(
-            pre_stage_channels, num_channels)
-        self.stage3, pre_stage_channels = self._make_stage(
+            pre_stage_channels_2, num_channels)
+        self.stage3, pre_stage_channels_3 = self._make_stage(
             self.stage3_cfg, num_channels)
 
         self.stage4_cfg = {
@@ -339,11 +340,16 @@ class HighResolutionNet(nn.Module):
         num_channels = [
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition3 = self._make_transition_layer(
-            pre_stage_channels, num_channels)
-        self.stage4, pre_stage_channels = self._make_stage(
+            pre_stage_channels_3, num_channels)
+        self.stage4, pre_stage_channels_4 = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=True)
-
-        last_inp_channels = np.int(np.sum(pre_stage_channels))
+        
+        if self.stage == 2:
+            last_inp_channels = np.int(np.sum(pre_stage_channels_2))
+        elif self.stage == 3:
+            last_inp_channels = np.int(np.sum(pre_stage_channels_3))
+        elif self.stage == 4:
+            last_inp_channels = np.int(np.sum(pre_stage_channels_4))
 
         self.last_layer = nn.Sequential(
             nn.Conv2d(
@@ -444,7 +450,7 @@ class HighResolutionNet(nn.Module):
 
         return nn.Sequential(*modules), num_inchannels
 
-    def forward(self, x, image_path):
+    def forward(self, x, image_path=None):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -453,10 +459,10 @@ class HighResolutionNet(nn.Module):
         x = self.relu(x)
         x = self.layer1(x)
         
-        mean = x.sum(dim=1)
-        mean = mean.squeeze()
-        a = np.array(mean.detach().cpu())
-        cv2.imwrite(image_path.replace('.tif', '.jpg'), a*255/a.max())
+        # mean = x.sum(dim=1)
+        # mean = mean.squeeze()
+        # a = np.array(mean.detach().cpu())
+        # cv2.imwrite(image_path.replace('.tif', '.jpg'), a*255/a.max())
 
         x_list = []
         for i in range(self.stage2_cfg['NUM_BRANCHES']):
@@ -465,6 +471,21 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(x)
         y_list = self.stage2(x_list)
+        
+        if self.stage == 2 or None:
+            x = y_list
+            # Upsampling
+            x0_h, x0_w = x[0].size(2), x[0].size(3)
+            x1 = F.interpolate(x[1], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
+            x = torch.cat([x[0], x1], 1)
+            # mean = x.sum(dim=1)
+            # mean = mean.squeeze()
+            # a = np.array(mean.detach().cpu())
+            # cv2.imwrite(image_path.replace('.tif', '.jpg'), a*255/a.max())
+            x = self.last_layer(x)
+            x = F.interpolate(x, size=torch.Size([512, 512]), mode='bilinear', align_corners=True)
+            return x
+
 
         x_list = []
         for i in range(self.stage3_cfg['NUM_BRANCHES']):
@@ -476,6 +497,21 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         y_list = self.stage3(x_list)
+        
+        if self.stage == 3 or None:
+            x = y_list
+            # Upsampling
+            x0_h, x0_w = x[0].size(2), x[0].size(3)
+            x1 = F.interpolate(x[1], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
+            x2 = F.interpolate(x[2], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
+            x = torch.cat([x[0], x1, x2], 1)
+            # mean = x.sum(dim=1)
+            # mean = mean.squeeze()
+            # a = np.array(mean.detach().cpu())
+            # cv2.imwrite(image_path.replace('.tif', '.jpg'), a*255/a.max())
+            x = self.last_layer(x)
+            x = F.interpolate(x, size=torch.Size([512, 512]), mode='bilinear', align_corners=True)
+            return x
 
         x_list = []
         for i in range(self.stage4_cfg['NUM_BRANCHES']):
@@ -487,24 +523,21 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         x = self.stage4(x_list)
-
-        # Upsampling
-        x0_h, x0_w = x[0].size(2), x[0].size(3)
-        x1 = F.interpolate(x[1], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
-        x2 = F.interpolate(x[2], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
-        x3 = F.interpolate(x[3], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
-
-        x = torch.cat([x[0], x1, x2, x3], 1)
-        # mean = x.sum(dim=1)
-        # mean = mean.squeeze()
-        # a = np.array(mean.detach().cpu())
-        # cv2.imwrite(image_path.replace('.tif', '.jpg'), a*255/a.max())
-
-        x = self.last_layer(x)
-
-        x = F.interpolate(x, size=torch.Size([512, 512]), mode='bilinear', align_corners=True)
-
-        return x
+        
+        if self.stage == 4 or None:
+            # Upsampling
+            x0_h, x0_w = x[0].size(2), x[0].size(3)
+            x1 = F.interpolate(x[1], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
+            x2 = F.interpolate(x[2], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
+            x3 = F.interpolate(x[3], size=(x0_h, x0_w), mode='bilinear', align_corners=ALIGN_CORNERS)
+            x = torch.cat([x[0], x1, x2, x3], 1)
+            # mean = x.sum(dim=1)
+            # mean = mean.squeeze()
+            # a = np.array(mean.detach().cpu())
+            # cv2.imwrite(image_path.replace('.tif', '.jpg'), a*255/a.max())
+            x = self.last_layer(x)
+            x = F.interpolate(x, size=torch.Size([512, 512]), mode='bilinear', align_corners=True)
+            return x
 
     def init_weights(self, pretrained='', ):
         logger.info('=> init weights from normal distribution')
@@ -527,7 +560,7 @@ class HighResolutionNet(nn.Module):
             self.load_state_dict(model_dict)
 
 
-def get_seg_model():
-    model = HighResolutionNet()
+def get_seg_model(stage=None):
+    model = HighResolutionNet(stage)
     model.init_weights('')
     return model
