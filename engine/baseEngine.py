@@ -60,8 +60,6 @@ class BaseEngine(object):
     def load(self, path):
         data = torch.load(path)
         
-        
-
         new_state_dict = OrderedDict()
         for k, v in data['state_dict'].items():
             if 'last_layer' in k:
