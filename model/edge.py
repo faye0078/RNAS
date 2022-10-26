@@ -5,14 +5,14 @@ BatchNorm2d = torch.nn.SyncBatchNorm
 class BasicEdge(nn.Module):
     
     def __init__(self, input_channels, output_channels):
-        """_summary_
+        """Basic Edge in supernet
 
         Args:
-            input_channels (_type_): _description_
-            output_channels (_type_): _description_
+            input_channels (int): input channel of edge
+            output_channels (int): output channel of edge
 
         Raises:
-            ValueError: _description_
+            ValueError: input_channels must be equal to output_channels
         """
         if input_channels != output_channels:
             raise ValueError(f'input_channels != output_channels: {input_channels} != {output_channels}, basic edge only support same input and output channels')
@@ -44,11 +44,11 @@ class KeepEdge(nn.Module):
         """_summary_
 
         Args:
-            input_channels (_type_): _description_
-            output_channels (_type_): _description_
+            input_channels (int): input channel of edge
+            output_channels (int): output channel of edge
 
         Raises:
-            ValueError: _description_
+            ValueError: input_channels must be equal to output_channels
         """
         if input_channels != output_channels:
             raise ValueError(f'input_channels != output_channels: {input_channels} != {output_channels}, keep edge only support same input and output channels')
@@ -73,12 +73,12 @@ class DownsampleEdge(nn.Module):
         """_summary_
 
         Args:
-            input_channels (_type_): _description_
-            output_channels (_type_): _description_
-            down_num (_type_): _description_
+            input_channels (int): input channel of edge
+            output_channels (int): output channel of edge
+            down_num (int): downsample times
 
         Raises:
-            ValueError: _description_
+            ValueError: input_channels must be less than output_channels
         """        
         if input_channels >= output_channels:
             raise ValueError(f'input_channels >= output_channels: {input_channels} >= {output_channels}, downsample node only support input_channels < output_channels')
@@ -103,12 +103,12 @@ class UpsampleEdge(nn.Module):
         """_summary_
 
         Args:
-            input_channels (_type_): _description_
-            output_channels (_type_): _description_
-            up_num (_type_): _description_
+            input_channels (int): input channel of edge
+            output_channels (int): output channel of edge
+            up_num (int): upsample times 
 
         Raises:
-            ValueError: _description_
+            ValueError: input_channels must be greater than output_channels
         """        
         if input_channels <= output_channels:
             raise ValueError(f'input_channels <= output_channels: {input_channels} <= {output_channels}, upsample node only support input_channels > output_channels')
