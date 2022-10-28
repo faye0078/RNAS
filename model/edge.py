@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-BatchNorm2d = torch.nn.SyncBatchNorm
+BatchNorm2d = torch.nn.BatchNorm2d
+# BatchNorm2d = torch.nn.SyncBatchNorm
 
 class BasicEdge(nn.Module):
     
@@ -18,7 +19,7 @@ class BasicEdge(nn.Module):
             raise ValueError(f'input_channels != output_channels: {input_channels} != {output_channels}, basic edge only support same input and output channels')
         super(BasicEdge, self).__init__()
         
-        self.conv1 = nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=1, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=1, padding=0, bias=False)
         self.bn1 = BatchNorm2d(output_channels)
         self.conv2 = nn.Conv2d(output_channels, output_channels, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = BatchNorm2d(output_channels)
@@ -54,7 +55,7 @@ class KeepEdge(nn.Module):
             raise ValueError(f'input_channels != output_channels: {input_channels} != {output_channels}, keep edge only support same input and output channels')
         super(KeepEdge, self).__init__()
         keep = []
-        keep.append(nn.Conv2d(input_channels, output_channels, kernel_size=1, stride=1, padding=1, bias=False))
+        keep.append(nn.Conv2d(input_channels, output_channels, kernel_size=3, stride=1, padding=1, bias=False))
         keep.append(BatchNorm2d(output_channels))
         
         self.keep = nn.Sequential(*keep)
@@ -86,7 +87,7 @@ class DownsampleEdge(nn.Module):
         downsample = []
         for i in range(down_num):
             _input_channels = input_channels if i == 0 else _output_channels
-            _output_channels = output_channels // (2 ** (i + 1))
+            _output_channels = output_channels // (2 ** (down_num - 1 - i))
             downsample.append(nn.Conv2d(_input_channels, _output_channels, kernel_size=3, stride=2, padding=1, bias=False))
             downsample.append(BatchNorm2d(_output_channels))
         
@@ -116,7 +117,7 @@ class UpsampleEdge(nn.Module):
         upsample = []
         for i in range(up_num):
             _input_channels = input_channels if i == 0 else _output_channels
-            _output_channels = output_channels * (2 ** (i + 1))
+            _output_channels = output_channels * (2 ** (up_num - 1 - i))
             upsample.append(nn.ConvTranspose2d(_input_channels, _output_channels, kernel_size=3, stride=2, padding=1, output_padding=1, bias=False))
             upsample.append(BatchNorm2d(_output_channels))
         

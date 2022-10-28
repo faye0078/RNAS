@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 import numpy as np
-BatchNorm2d = torch.nn.SyncBatchNorm
+BatchNorm2d = torch.nn.BatchNorm2d
+# BatchNorm2d = torch.nn.SyncBatchNorm
 from model.edge import BasicEdge, KeepEdge, DownsampleEdge, UpsampleEdge
 
 
@@ -23,42 +24,47 @@ class Node(nn.Module):
         self.active_encode = active_encode
         bm = base_multiplier
         if index == 0:
-            self.edge1 = KeepEdge(bm, bm)
-            self.edge2 = UpsampleEdge(bm*2, bm, 1)
-            self.edge3 = UpsampleEdge(bm*4, bm, 2)
-            self.edge4 = UpsampleEdge(bm*8, bm, 3)
+            self.edge0 = KeepEdge(bm, bm)
+            self.edge1 = UpsampleEdge(bm*2, bm, 1)
+            self.edge2 = UpsampleEdge(bm*4, bm, 2)
+            self.edge3 = UpsampleEdge(bm*8, bm, 3)
+            self.keep_op = BasicEdge(bm, bm)
         elif index == 1:
-            self.edge1 = DownsampleEdge(bm, bm*2, 1)
-            self.edge2 = KeepEdge(bm*2, bm*2)
-            self.edge3 = UpsampleEdge(bm*4, bm*2, 1)
-            self.edge4 = UpsampleEdge(bm*8, bm*2, 2)
+            self.edge0 = DownsampleEdge(bm, bm*2, 1)
+            self.edge1 = KeepEdge(bm*2, bm*2)
+            self.edge2 = UpsampleEdge(bm*4, bm*2, 1)
+            self.edge3 = UpsampleEdge(bm*8, bm*2, 2)
+            self.keep_op = BasicEdge(2*bm, 2*bm)
         elif index == 2:
-            self.edge1 = DownsampleEdge(bm, bm*4, 2)
-            self.edge2 = DownsampleEdge(bm*2, bm*4, 1)
-            self.edge3 = KeepEdge(bm*4, bm*4)
-            self.edge4 = UpsampleEdge(bm*8, bm*4, 1)
+            self.edge0 = DownsampleEdge(bm, bm*4, 2)
+            self.edge1 = DownsampleEdge(bm*2, bm*4, 1)
+            self.edge2 = KeepEdge(bm*4, bm*4)
+            self.edge3 = UpsampleEdge(bm*8, bm*4, 1)
+            self.keep_op = BasicEdge(4*bm, 4*bm)
         elif index == 3:
-            self.edge1 = DownsampleEdge(bm, bm*8, 3)
-            self.edge2 = DownsampleEdge(bm*2, bm*8, 2)
-            self.edge3 = DownsampleEdge(bm*4, bm*8, 1)
-            self.edge4 = KeepEdge(bm*8, bm*8)
+            self.edge0 = DownsampleEdge(bm, bm*8, 3)
+            self.edge1 = DownsampleEdge(bm*2, bm*8, 2)
+            self.edge2 = DownsampleEdge(bm*4, bm*8, 1)
+            self.edge3 = KeepEdge(bm*8, bm*8)
+            self.keep_op = BasicEdge(8*bm, 8*bm)
+            
             
     def forward(self, x_list):
         y = []
         # reduce complexity
         for i in range(4):
-            if self.active_encode[i] and x_list[i] != 0:
+            if self.active_encode[i] and not isinstance(x_list[i], int):
                 if i == 0:
-                    y.append(self.edge1(x_list[0]))
+                    y.append(self.edge0(x_list[0]))
                 elif i == 1:
                     y.append(self.edge1(x_list[1]))
                 elif i == 2:
-                    y.append(self.edge1(x_list[2]))
+                    y.append(self.edge2(x_list[2]))
                 elif i == 3:
-                    y.append(self.edge1(x_list[3]))
+                    y.append(self.edge3(x_list[3]))
         if len(y) == 0:
             return 0
-        return sum(y)
+        return self.keep_op(sum(y))
 
 class SuperNet(nn.Module):
     
@@ -84,14 +90,14 @@ class SuperNet(nn.Module):
             BatchNorm2d(stem_multiplier), # default bn settings
         )
         self.stem1 = nn.Sequential(
-            nn.Conv2d(input_channel, stem_multiplier, kernel_size=3, stride=2, padding=1, bias=False),
-            BatchNorm2d(stem_multiplier),
+            nn.Conv2d(stem_multiplier, base_multiplier, kernel_size=3, stride=2, padding=1, bias=False),
+            BatchNorm2d(base_multiplier),
             nn.ReLU(inplace=True),
         )
-        self.trans0 = KeepEdge(stem_multiplier, stem_multiplier)
-        self.trans1 = DownsampleEdge(stem_multiplier, stem_multiplier, 1)
-        self.trans2 = DownsampleEdge(stem_multiplier, stem_multiplier, 2)
-        self.trans3 = DownsampleEdge(stem_multiplier, stem_multiplier, 3)
+        self.trans0 = KeepEdge(base_multiplier, base_multiplier)
+        self.trans1 = DownsampleEdge(base_multiplier, 2*base_multiplier, 1)
+        self.trans2 = DownsampleEdge(base_multiplier, 4*base_multiplier, 2)
+        self.trans3 = DownsampleEdge(base_multiplier, 8*base_multiplier, 3)
         
         # stem choice2
         # TODO: add stem choice2/ directly downsample the original image and input unique stem
@@ -104,11 +110,11 @@ class SuperNet(nn.Module):
         
         last_channel_num = 0
         
-        for i in layers:
+        for i in range(layers):
             layer_nodes = nn.ModuleList()
-            for j in depth:
+            for j in range(depth):
                 layer_nodes.append(Node(j, self.node_active_encode[i, j], base_multiplier))
-                if i == len(layers) -1 and self.num_connect[i][j] != 0:
+                if i == layers -1 and self.num_connect[i][j] != 0:
                      last_channel_num += base_multiplier * pow(2, j)
                      
             self.node_modules.append(layer_nodes)
@@ -141,14 +147,14 @@ class SuperNet(nn.Module):
         x_list.append(self.trans2(x))
         x_list.append(self.trans3(x))
         
-        for i in self.layers:
-            for j in self.depth:
+        for i in range(self.layers):
+            for j in range(self.depth):
                 x_list[j] = self.node_modules[i][j](x_list)
                 
         last_features = [feature for feature in x_list if torch.is_tensor(feature)]
         last_features = [nn.Upsample(size=last_features[0].size()[2:], mode='bilinear')(feature) for feature in last_features]
         result = torch.cat(last_features, dim=1)
-        result = self.last_conv(result)
+        result = self.classifier(result)
         
         return result
     
