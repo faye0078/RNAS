@@ -12,7 +12,7 @@ def obtain_pretrain_args():
     parser.add_argument('--affine', default=False, type=bool, help='whether use affine in BN')
     # data
     parser.add_argument('--batch_size', type=int, default=2, metavar='N', help='input batch size for training (default: auto)')
-    parser.add_argument('--dataset', type=str, default='GID', choices=['FBP'], help='dataset name (default: pascal)')
+    parser.add_argument('--dataset', type=str, default='FBP', choices=['FBP'], help='dataset name (default: pascal)')
     NORMALISE_PARAMS = [
                         1.0 / 255,  # SCALE
                         np.array([0.485, 0.456, 0.406, 0.411]).reshape((1, 1, 4)),  # MEAN

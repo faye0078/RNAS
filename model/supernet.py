@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 BatchNorm2d = torch.nn.BatchNorm2d
 # BatchNorm2d = torch.nn.SyncBatchNorm
-from model.edge import BasicEdge, KeepEdge, DownsampleEdge, UpsampleEdge
+from edge import BasicEdge, KeepEdge, DownsampleEdge, UpsampleEdge
 
 
 class Node(nn.Module):
@@ -68,7 +68,7 @@ class Node(nn.Module):
 
 class SuperNet(nn.Module):
     
-    def __init__(self, layers, depth, input_channel, num_classes, stem_multiplier, base_multiplier, node_active_encode=None):
+    def __init__(self, layers, depth, input_channel, num_classes, stem_multiplier, base_multiplier, node_active_e                                       ncode=None):
         """the main model in this project
 
         Args:
@@ -106,6 +106,8 @@ class SuperNet(nn.Module):
         
         if node_active_encode is None:
             self.node_active_encode = np.ones((layers, depth, depth), dtype=bool)
+        else:
+            self.node_active_encode = node_active_encode
         self.num_connect = np.sum(self.node_active_encode, axis=2)
         
         last_channel_num = 0
@@ -170,4 +172,9 @@ class SuperNet(nn.Module):
 
         
         
-        
+if __name__ == '__main__':
+    model = SuperNet(12, 4, 3, 3, 32, 32)
+    model._initialize_weights()
+    x = torch.randn(2, 3, 224, 224)
+    y = model(x)
+    print(y.size())
