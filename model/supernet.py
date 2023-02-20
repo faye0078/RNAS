@@ -7,12 +7,11 @@ from edge import BasicEdge, KeepEdge, DownsampleEdge, UpsampleEdge
 
 
 class Node(nn.Module):
-    def __init__(self, index, active_encode, base_multiplier):
+    def __init__(self, index, base_multiplier):
         """node structure in supernet
 
         Args:
             index (int): index the node location in depth
-            active_encode (array): connect condition of node
             base_multiplier (int): the supernet/node base channel 
 
         Raises:
@@ -21,7 +20,6 @@ class Node(nn.Module):
         if index not in [0, 1, 2, 3]:
             raise ValueError(f'index must be in [0, 1, 2, 3], but got {index} the max index is depth - 1, when depth change, "if" condition must be changed')
         super(Node, self).__init__()
-        self.active_encode = active_encode
         bm = base_multiplier
         if index == 0:
             self.edge0 = KeepEdge(bm, bm)
@@ -49,11 +47,11 @@ class Node(nn.Module):
             self.keep_op = BasicEdge(8*bm, 8*bm)
             
             
-    def forward(self, x_list):
+    def forward(self, x_list, active_encode):
         y = []
         # reduce complexity
         for i in range(4):
-            if self.active_encode[i] and not isinstance(x_list[i], int):
+            if active_encode[i] and not isinstance(x_list[i], int):
                 if i == 0:
                     y.append(self.edge0(x_list[0]))
                 elif i == 1:
@@ -68,7 +66,7 @@ class Node(nn.Module):
 
 class SuperNet(nn.Module):
     
-    def __init__(self, layers, depth, input_channel, num_classes, stem_multiplier, base_multiplier, node_active_e                                       ncode=None):
+    def __init__(self, layers, depth, input_channel, num_classes, stem_multiplier, base_multiplier):
         """the main model in this project
 
         Args:
@@ -78,7 +76,6 @@ class SuperNet(nn.Module):
             num_classes (int): the number of classes
             stem_multiplier (int): the stem intermediate channel 
             base_multiplier (int): the supernet base channel 
-            node_active_encode (array, optional): every node connect condition. Defaults to None.
         """        
         super(SuperNet, self).__init__()
         self.layers = layers
@@ -104,10 +101,8 @@ class SuperNet(nn.Module):
         
         self.node_modules = nn.ModuleList()
         
-        if node_active_encode is None:
-            self.node_active_encode = np.ones((layers, depth, depth), dtype=bool)
-        else:
-            self.node_active_encode = node_active_encode
+        self.node_active_encode = np.ones((layers, depth, depth), dtype=bool)
+
         self.num_connect = np.sum(self.node_active_encode, axis=2)
         
         last_channel_num = 0
@@ -115,7 +110,7 @@ class SuperNet(nn.Module):
         for i in range(layers):
             layer_nodes = nn.ModuleList()
             for j in range(depth):
-                layer_nodes.append(Node(j, self.node_active_encode[i, j], base_multiplier))
+                layer_nodes.append(Node(j, base_multiplier))
                 if i == layers -1 and self.num_connect[i][j] != 0:
                      last_channel_num += base_multiplier * pow(2, j)
                      
@@ -137,7 +132,15 @@ class SuperNet(nn.Module):
                 stride=1,
                 padding=1) # TODO: padding=1 or 0 / depends on the kernel size?
         )
-                
+        
+    def update_active_encode(self, node_active_encode):
+        """update the active encode of the model
+
+        Args:
+            node_active_encode (array): every node connect condition. shape: (layers, depth, depth)
+        """        
+        self.node_active_encode = node_active_encode
+        self.num_connect = np.sum(self.node_active_encode, axis=2)
         
     def forward(self, x):
         x = self.stem0(x)
@@ -151,7 +154,7 @@ class SuperNet(nn.Module):
         
         for i in range(self.layers):
             for j in range(self.depth):
-                x_list[j] = self.node_modules[i][j](x_list)
+                x_list[j] = self.node_modules[i][j](x_list, self.node_active_encode[i, j])
                 
         last_features = [feature for feature in x_list if torch.is_tensor(feature)]
         last_features = [nn.Upsample(size=last_features[0].size()[2:], mode='bilinear')(feature) for feature in last_features]

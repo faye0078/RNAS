@@ -1,4 +1,5 @@
 from dataloaders.datasets import GID
+from dataloaders.datasets import FBP
 from torch.utils.data import DataLoader, random_split
 import sys
 sys.path.append("../")
@@ -12,9 +13,12 @@ from dataloaders.datasets.GID import (
 )
 from torchvision import transforms
 def make_data_loader(args, **kwargs):
+    if args.dataset == "GID":
+        Dataset = GID.GIDDataset
+    if args.dataset == "FBP":
+        Dataset = FBP.FBPDataset
     data_path = get_data_path(args.dataset)
     num_class = 5
-
     composed_trn = transforms.Compose(
         [
             RandomMirror(),
@@ -37,19 +41,18 @@ def make_data_loader(args, **kwargs):
             Normalise(*args.normalise_params),
             ToTensor(),
         ])
-
-    train_set = GID.GIDDataset(stage="train",
-                                data_file=data_path['mini_train_list'],
-                                data_dir=data_path['dir'],
-                                transform_trn=composed_trn,)
-    val_set = GID.GIDDataset(stage="val",
-                                data_file=data_path['val_list'],
-                                data_dir=data_path['dir'],
-                                transform_val=composed_val,)
-    test_set = GID.GIDDataset(stage="test",
-                                data_file=data_path['test_list'],
-                                data_dir=data_path['dir'],
-                                transform_test=composed_test,)
+    train_set = Dataset(stage="train",
+                        data_file=data_path['mini_train_list'],
+                        data_dir=data_path['dir'],
+                        transform_trn=composed_trn,)
+    val_set = Dataset(stage="val",
+                        data_file=data_path['val_list'],
+                        data_dir=data_path['dir'],
+                        transform_val=composed_val,)
+    test_set = Dataset(stage="test",
+                        data_file=data_path['test_list'],
+                        data_dir=data_path['dir'],
+                        transform_test=composed_test,)
     
     train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True, **kwargs)
     val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False, **kwargs)
