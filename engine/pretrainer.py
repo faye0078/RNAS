@@ -1,6 +1,8 @@
 import torch
+import tqdm
 from engine.baseEngine import BaseEngine
 from model.encoder import modelEncoder
+from dataloaders import make_data_loader
 class Pretrainer(BaseEngine):
     """_summary_
 
@@ -12,8 +14,23 @@ class Pretrainer(BaseEngine):
         self.optimizer = optimizer
         self.loss_fn = loss_fn
         self.device = device
+        self.model = self.model.to(self.device)
         self.model_encoder = modelEncoder(layers, depth)
         
-    def pretrain(self, model_size, img_size):
-        self.model_size = model_size
-        self.img_size = img_size
+    def pretrain_one(self, train_loader, epoch):
+        print("Epoch: ", epoch)
+        tbar = tqdm.tqdm(train_loader, ncols=80)
+        for i, sample in enumerate(tbar):
+            image = sample['image'].to(self.device).float()
+            mask = sample['mask'].to(self.device).long()
+            output = self.model(image)
+            loss = self.loss_fn(output, mask)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            tbar.set_description('Train loss: %.3f' % loss.item())
+            if i > 10:
+                break
+            
+    def update_model_encode(self):
+        self.model.update_active_encode(self.model_encoder.generate())

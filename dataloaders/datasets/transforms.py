@@ -18,7 +18,7 @@ class RandomCrop(object):
         left = np.random.randint(0, w - new_w + 1)
         image = image[top : top + new_h, left : left + new_w]
         mask = mask[top : top + new_h, left : left + new_w]
-        return {"image": image, "mask": mask, "name": sample["name"]}
+        return {"image": image, "mask": mask}
 
 class RandomMirror(object):
     def __init__(self):
@@ -30,7 +30,7 @@ class RandomMirror(object):
         if do_mirror:
             image = cv2.flip(image, 1)
             mask = cv2.flip(mask, 1)
-        return {"image": image, "mask": mask, "name": sample["name"]}
+        return {"image": image, "mask": mask}
 
 
 class Normalise(object):
@@ -44,7 +44,6 @@ class Normalise(object):
         return {
             "image": (self.scale * image - self.mean) / self.std,
             "mask": sample["mask"],
-            "name": sample["name"]
         }
 
 
@@ -56,5 +55,5 @@ class ToTensor(object):
         # numpy image: H x W x C
         # torch image: C X H X W
         image = image.transpose((2, 0, 1))
-        return {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask), "name": sample["name"]}
+        return {"image": torch.from_numpy(image), "mask": torch.from_numpy(mask)}
 

@@ -2,7 +2,7 @@ import random
 import numpy as np
 import torch
 from torchstat import stat
-from supernet import SuperNet
+from model.supernet import SuperNet
 class modelEncoder:
     def __init__(self, layers, depth):
         self.layers = layers

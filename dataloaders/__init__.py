@@ -15,41 +15,41 @@ from torchvision import transforms
 def make_data_loader(args, **kwargs):
     if args.dataset == "GID":
         Dataset = GID.GIDDataset
+        num_class = 5
     if args.dataset == "FBP":
         Dataset = FBP.FBPDataset
+        num_class = 24
     data_path = get_data_path(args.dataset)
-    num_class = 5
     composed_trn = transforms.Compose(
         [
             RandomMirror(),
-            RandomCrop(args.crop_size),
             Normalise(*args.normalise_params),
             ToTensor(),
         ]
     )
     composed_val = transforms.Compose(
         [
-
-            RandomCrop(args.crop_size),
             Normalise(*args.normalise_params),
             ToTensor(),
         ]
     )
     composed_test = transforms.Compose(
         [
-            RandomCrop(args.crop_size),
             Normalise(*args.normalise_params),
             ToTensor(),
         ])
-    train_set = Dataset(stage="train",
-                        data_file=data_path['mini_train_list'],
+    train_set = Dataset(stage='train',
+                        image_size_rand=[256,1024],
+                        data_file=data_path['train_list'],
                         data_dir=data_path['dir'],
                         transform_trn=composed_trn,)
-    val_set = Dataset(stage="val",
+    val_set = Dataset(stage='val',
+                        image_size_rand=[256,1024],
                         data_file=data_path['val_list'],
                         data_dir=data_path['dir'],
                         transform_val=composed_val,)
-    test_set = Dataset(stage="test",
+    test_set = Dataset(stage='test',
+                        image_size_rand=[256,1024],
                         data_file=data_path['test_list'],
                         data_dir=data_path['dir'],
                         transform_test=composed_test,)

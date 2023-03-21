@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from PIL import Image
-from transforms import *
+from dataloaders.datasets.transforms import *
 from torch.utils.data import Dataset
 class GIDDataset(Dataset):
 

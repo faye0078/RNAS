@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 BatchNorm2d = torch.nn.BatchNorm2d
 # BatchNorm2d = torch.nn.SyncBatchNorm
-from edge import BasicEdge, KeepEdge, DownsampleEdge, UpsampleEdge
+from model.edge import BasicEdge, KeepEdge, DownsampleEdge, UpsampleEdge
 
 
 class Node(nn.Module):
@@ -46,7 +46,6 @@ class Node(nn.Module):
             self.edge3 = KeepEdge(bm*8, bm*8)
             self.keep_op = BasicEdge(8*bm, 8*bm)
             
-            
     def forward(self, x_list, active_encode):
         y = []
         # reduce complexity
@@ -62,6 +61,12 @@ class Node(nn.Module):
                     y.append(self.edge3(x_list[3]))
         if len(y) == 0:
             return 0
+        # make y has the same shape
+        shape_list = [y[i].shape for i in range(len(y))]
+        max_shape = max(shape_list, key=lambda x: x[2])
+        for i in range(len(y)):
+            if y[i].shape != max_shape:
+                y[i] = nn.functional.interpolate(y[i], size=max_shape[2:], mode='bilinear', align_corners=True)
         return self.keep_op(sum(y))
 
 class SuperNet(nn.Module):
@@ -143,21 +148,23 @@ class SuperNet(nn.Module):
         self.num_connect = np.sum(self.node_active_encode, axis=2)
         
     def forward(self, x):
-        x = self.stem0(x)
-        x = self.stem1(x)
+        stem0 = self.stem0(x)
+        stem1 = self.stem1(stem0)
         
         x_list = []
-        x_list.append(self.trans0(x))
-        x_list.append(self.trans1(x))
-        x_list.append(self.trans2(x))
-        x_list.append(self.trans3(x))
+        x_list.append(self.trans0(stem1))
+        x_list.append(self.trans1(stem1))
+        x_list.append(self.trans2(stem1))
+        x_list.append(self.trans3(stem1))
         
         for i in range(self.layers):
             for j in range(self.depth):
                 x_list[j] = self.node_modules[i][j](x_list, self.node_active_encode[i, j])
+            if sum(sum(self.node_active_encode[i+1])) == 0:
+                break
                 
         last_features = [feature for feature in x_list if torch.is_tensor(feature)]
-        last_features = [nn.Upsample(size=last_features[0].size()[2:], mode='bilinear')(feature) for feature in last_features]
+        last_features = [nn.Upsample(size=x.size()[2:], mode='bilinear')(feature) for feature in last_features]
         result = torch.cat(last_features, dim=1)
         result = self.classifier(result)
         
