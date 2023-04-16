@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 
 class FBPDataset(Dataset):
 
-    def __init__(self, stage, image_size_rand, data_file, data_dir, transform_trn=None, transform_val=None, transform_test=None):
+    def __init__(self, stage, image_size_rand, data_file, data_dir, image_size=None, transform_trn=None, transform_val=None, transform_test=None):
         self.stage = stage
         with open(data_file, "rb") as f:
             datalist = f.readlines()
@@ -34,15 +34,24 @@ class FBPDataset(Dataset):
         
         self.image = None
         self.mask = None
-        self.image_size = random.randint(image_size_rand[0], image_size_rand[1])
-        print("image_size: ", self.image_size)
+        if image_size is None:
+            self.image_size = random.randint(image_size_rand[0], image_size_rand[1])
+        else:
+            self.image_size = image_size
+        # print("image_size: ", self.image_size)
 
-        self._refresh_img()
+        self.image = np.asarray(Image.open(os.path.join(self.root_dir, self.datalist[self.img_idx][0])))
+        self.mask = np.asarray(Image.open(os.path.join(self.root_dir, self.datalist[self.img_idx][1])))
         
-    def update_image_size(self):
-        self.image_size = random.randint(self.image_size_rand[0], self.image_size_rand[1])
+    def update_image_size(self, image_size):
+        self.image_size = image_size
         self.img_idx = 0
-        print("image_size: ", self.image_size)
+        self._refresh_img()
+        # print("image_size: ", self.image_size)
+        
+    def refresh_dataset(self):
+        self.img_idx = 0
+        self._refresh_img()
         
     def _caculate_patch_num(self):
         num_x = int(np.ceil(self.image.shape[0] / self.image_size))

@@ -15,6 +15,8 @@ class Pretrainer(BaseEngine):
         self.loss_fn = loss_fn
         self.device = device
         self.model = self.model.to(self.device)
+        self.model.load_state_dict(torch.load("./pretrain_model.pth"))
+        self.model = torch.nn.DataParallel(self.model)
         self.model_encoder = modelEncoder(layers, depth)
         
     def pretrain_one(self, train_loader, epoch):
@@ -25,12 +27,13 @@ class Pretrainer(BaseEngine):
             mask = sample['mask'].to(self.device).long()
             output = self.model(image)
             loss = self.loss_fn(output, mask)
-            self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            self.optimizer.zero_grad()
             tbar.set_description('Train loss: %.3f' % loss.item())
-            if i > 10:
-                break
+            # if i > 3:
+            #     break
+        torch.cuda.empty_cache()
             
     def update_model_encode(self):
-        self.model.update_active_encode(self.model_encoder.generate())
+        self.model.module.update_active_encode(self.model_encoder.generate())

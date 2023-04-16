@@ -12,7 +12,7 @@ class Node(nn.Module):
 
         Args:
             index (int): index the node location in depth
-            base_multiplier (int): the supernet/node base channel 
+            base_multiplier (int): the supernet/node base channel
 
         Raises:
             ValueError: _description_
@@ -80,7 +80,7 @@ class SuperNet(nn.Module):
             input_channel (int): the number of input channel
             num_classes (int): the number of classes
             stem_multiplier (int): the stem intermediate channel 
-            base_multiplier (int): the supernet base channel 
+            base_multiplier (int): the supernet base channel
         """        
         super(SuperNet, self).__init__()
         self.layers = layers
@@ -160,8 +160,9 @@ class SuperNet(nn.Module):
         for i in range(self.layers):
             for j in range(self.depth):
                 x_list[j] = self.node_modules[i][j](x_list, self.node_active_encode[i, j])
-            if sum(sum(self.node_active_encode[i+1])) == 0:
-                break
+            if i != self.layers - 1:
+                if sum(sum(self.node_active_encode[i+1])) == 0:
+                    break
                 
         last_features = [feature for feature in x_list if torch.is_tensor(feature)]
         last_features = [nn.Upsample(size=x.size()[2:], mode='bilinear')(feature) for feature in last_features]
